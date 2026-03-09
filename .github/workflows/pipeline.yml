@@ -81,8 +81,13 @@ jobs:
       - name: Deploy to EC2
         run: |
           ssh -o StrictHostKeyChecking=no ubuntu@${{ secrets.EC2_PUBLIC_IP }} "
+            cd ~/techflow-project &&
+            ./scripts/tag_stable.sh &&
             docker pull ${{ secrets.DOCKERHUB_USERNAME }}/techflow-app:latest &&
             docker stop techflow-container || true &&
             docker rm techflow-container || true &&
-            docker run -d --name techflow-container -p 5000:5000 ${{ secrets.DOCKERHUB_USERNAME }}/techflow-app:latest
+            docker run -d --name techflow-container -p 5000:5000 ${{ secrets.DOCKERHUB_USERNAME }}/techflow-app:latest &&
+            ./scripts/health_check.sh || ./scripts/rollback.sh &&
+            ./scripts/send_email.sh \"\$([ $? -eq 0 ] && echo Success || echo Failure)\"
           "
+
