@@ -8,3 +8,4 @@ venv/
 dist/
 .pytest_cache/
 venv/
+/__pycache__
