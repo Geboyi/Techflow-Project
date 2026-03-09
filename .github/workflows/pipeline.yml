@@ -77,9 +77,10 @@ jobs:
           ssh-private-key: ${{ secrets.EC2_SSH_KEY }}
 
       - name: Deploy to EC2
+        id: ec2-deploy
         run: |
           ssh -o StrictHostKeyChecking=no ubuntu@${{ secrets.EC2_PUBLIC_IP }} "
-            # Ensure repo exists
+            # Clone repo if missing, else pull latest
             if [ ! -d ~/techflow-project ]; then
               mkdir -p ~/techflow-project
               git clone https://github.com/Geboyi/Techflow-Project.git ~/techflow-project
@@ -92,21 +93,32 @@ jobs:
             # Make scripts executable
             chmod +x scripts/*.sh
 
-            # Tag current container as previous_stable
+            # Tag currently running container as previous_stable
             ./scripts/tag_stable.sh
 
             # Pull latest Docker image
             docker pull ${{ secrets.DOCKERHUB_USERNAME }}/techflow-app:latest
 
-            # Stop & remove old container
+            # Stop and remove old container
             docker rm -f techflow-container || true
 
             # Run new container
             docker run -d --name techflow-container -p 5000:5000 ${{ secrets.DOCKERHUB_USERNAME }}/techflow-app:latest
 
-            # Run health check; rollback if fails
+            # Run health check; rollback if it fails
             ./scripts/health_check.sh || ./scripts/rollback.sh
-
-            # Send email notification (optional)
-            ./scripts/send_email.sh \"\$([ $? -eq 0 ] && echo Success || echo Failure)\"
           "
+
+      - name: Send Deployment Email
+        if: always()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.EMAIL_USERNAME }}
+          password: ${{ secrets.EMAIL_PASSWORD }}
+          to: your-email@example.com
+          subject: "TechFlow Deployment Status: ${{ github.sha }}"
+          body: |
+            Deployment finished with status: ${{ job.status }}
+          secure: true
